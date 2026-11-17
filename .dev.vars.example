@@ -1,3 +1,5 @@
 # 이 파일을 .dev.vars 로 복사한 뒤 값을 채우세요. (.dev.vars 는 git에 올라가지 않습니다)
 # 세션 쿠키 서명용 긴 무작위 문자열 (예: node -e "console.log(crypto.randomUUID()+crypto.randomUUID())")
 SESSION_SECRET=change-me-to-a-long-random-string
+# 네이버 로그인 Client Secret (네이버 개발자센터 → 내 애플리케이션)
+NAVER_CLIENT_SECRET=xxxxxxxxxx

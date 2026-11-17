@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { GOOGLE_CLIENT_ID } from './config'
 
-type User = { sub: string; name: string; email: string; picture: string }
+type User = { sub: string; name: string; email: string; picture: string; provider?: 'google' | 'naver' }
 
 // Google Identity Services (https://accounts.google.com/gsi/client) 최소 타입
 type GoogleId = {
@@ -22,10 +22,21 @@ function waitForGoogle(): Promise<GoogleId> {
   })
 }
 
+// 서버가 로그인 실패 시 붙여 보내는 ?login_error=... 를 읽고 주소에서 지움
+function takeLoginError(): string {
+  const url = new URL(window.location.href)
+  const msg = url.searchParams.get('login_error') ?? ''
+  if (msg) {
+    url.searchParams.delete('login_error')
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+  }
+  return msg
+}
+
 export default function Auth() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(takeLoginError)
   const buttonRef = useRef<HTMLDivElement>(null)
 
   // 기존 세션 확인
@@ -75,9 +86,20 @@ export default function Auth() {
   if (!user) {
     return (
       <div className="flex flex-col items-end gap-1">
-        <div ref={buttonRef} className="min-h-10" />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div ref={buttonRef} className="min-h-10" />
+          <a
+            href="/api/auth/naver"
+            className="inline-flex h-10 items-center gap-2 rounded bg-[#03C75A] px-4 text-sm font-bold text-white hover:bg-[#02B350]"
+          >
+            <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true">
+              <path fill="#fff" d="M13.6 10.7 6.1 0H0v20h6.4V9.3L13.9 20H20V0h-6.4z" />
+            </svg>
+            네이버 로그인
+          </a>
+        </div>
         {error && (
-          <p role="alert" className="text-xs text-[#B42318]">
+          <p role="alert" className="max-w-[360px] text-right text-xs text-[#B42318]">
             {error}
           </p>
         )}
@@ -87,9 +109,18 @@ export default function Auth() {
 
   return (
     <div className="flex items-center gap-3">
-      <img src={user.picture} alt="" referrerPolicy="no-referrer" className="h-9 w-9 rounded-full" />
+      {user.picture ? (
+        <img src={user.picture} alt="" referrerPolicy="no-referrer" className="h-9 w-9 rounded-full" />
+      ) : (
+        <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-sm font-bold text-white">
+          {user.name.slice(0, 1)}
+        </span>
+      )}
       <div className="hidden flex-col leading-tight sm:flex">
-        <span className="text-sm font-bold">{user.name}</span>
+        <span className="text-sm font-bold">
+          {user.name}
+          {user.provider === 'naver' && <span className="ml-1 text-xs font-medium text-[#03A94D]">· 네이버</span>}
+        </span>
         <span className="text-xs text-muted">{user.email}</span>
       </div>
       <button
