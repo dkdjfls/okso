@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import Auth from './Auth'
 import { festivals, foods, sights } from './data'
 
 const nav = [
@@ -38,12 +39,15 @@ export default function App() {
           <a href="#top" className="text-xl font-bold text-ink">
             옥천 沃川
           </a>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {nav.map((n) => (
               <a key={n.href} href={n.href} className="px-3.5 py-2.5 text-[15px] text-[#3A4643] hover:text-accent">
                 {n.label}
               </a>
             ))}
+            <div className="ml-2">
+              <Auth />
+            </div>
           </div>
         </nav>
       </header>
