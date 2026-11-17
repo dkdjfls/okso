@@ -6,4 +6,4 @@ export const GOOGLE_CLIENT_ID = '374241485062-vrshdmm8dakj9vpulit38ldhshnpmf41.a
 
 // 네이버 로그인 Client ID (네이버 개발자센터 → 내 애플리케이션 → 개요)
 // Client Secret은 Cloudflare Secret `NAVER_CLIENT_SECRET`으로 설정합니다.
-export const NAVER_CLIENT_ID = ''
+export const NAVER_CLIENT_ID = 'y8anD8GqNVKCQBBbBMbn'
