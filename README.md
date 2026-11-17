@@ -23,31 +23,23 @@ npm run preview    # 빌드 후 wrangler로 API까지 함께 로컬 실행
 |---|---|
 | `GET /api/health` | 상태 확인 |
 | `GET /api/sights` | 명소 목록 |
-
-| `GET /api/auth/google` | Google 로그인 시작 |
-| `GET /api/auth/callback` | Google 로그인 콜백 |
+| `POST /api/auth/google` | Google ID 토큰(credential) 검증 후 로그인 |
 | `GET /api/me` | 현재 로그인 사용자 (`{ user }`) |
 | `POST /api/auth/logout` | 로그아웃 |
 
 ## Google 로그인 설정 (연습용)
 
-1. [Google Cloud Console](https://console.cloud.google.com/)에서 프로젝트를 만듭니다.
-2. **APIs & Services → OAuth consent screen**: User type `External`, 앱 이름·이메일 입력, 게시 상태는 `Testing`으로 두고 **Test users**에 로그인할 Google 계정을 추가합니다.
-3. **APIs & Services → Credentials → Create credentials → OAuth client ID**
-   - Application type: `Web application`
-   - Authorized redirect URIs:
-     - `https://okso-1xy.pages.dev/api/auth/callback`
-     - `http://localhost:8788/api/auth/callback` (로컬 테스트용)
-4. 발급된 Client ID / Client secret을 아래 환경 변수로 넣습니다.
+Google Identity Services("Google 계정으로 로그인" 버튼) 방식이라 **리디렉션 URI와 Client Secret이 필요 없습니다.**
 
-| 변수 | 값 |
-|---|---|
-| `GOOGLE_CLIENT_ID` | OAuth 클라이언트 ID |
-| `GOOGLE_CLIENT_SECRET` | OAuth 클라이언트 보안 비밀번호 |
-| `SESSION_SECRET` | 긴 무작위 문자열 (세션 쿠키 서명용) |
-
-- **배포 환경**: Cloudflare 대시보드 → 프로젝트 → Settings → Variables and Secrets 에 추가(Secret 타입 권장) 후 재배포
-- **로컬**: `.dev.vars.example`을 `.dev.vars`로 복사해 값을 채우고 `npm run preview` (http://localhost:8788)
+1. [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials → OAuth 클라이언트(Web application)
+2. **승인된 자바스크립트 원본**에 추가:
+   - `https://okso-1xy.pages.dev`
+   - `http://localhost:8788`, `http://localhost` (로컬 테스트용)
+3. OAuth consent screen이 Testing 상태라면 **Test users**에 로그인할 계정을 추가합니다.
+4. 클라이언트 ID는 `src/config.ts`에 있습니다.
+5. 세션 쿠키 서명용 `SESSION_SECRET`(긴 무작위 문자열)을 설정합니다.
+   - 배포: Cloudflare 대시보드 → 프로젝트 → Settings → Variables and Secrets (Secret)
+   - 로컬: `.dev.vars.example`을 `.dev.vars`로 복사 후 `npm run preview`
 
 ## Cloudflare Pages 설정
 

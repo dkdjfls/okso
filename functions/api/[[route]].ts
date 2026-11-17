@@ -1,19 +1,17 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { handle } from 'hono/cloudflare-pages'
-import { deleteCookie, getCookie, getSignedCookie, setCookie, setSignedCookie } from 'hono/cookie'
+import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
+import { GOOGLE_CLIENT_ID } from '../../src/config'
 import { sights } from '../../src/data'
 
 type Bindings = {
-  GOOGLE_CLIENT_ID: string
-  GOOGLE_CLIENT_SECRET: string
   SESSION_SECRET: string
 }
 
 type User = { sub: string; name: string; email: string; picture: string }
 
 const SESSION_COOKIE = 'session'
-const STATE_COOKIE = 'oauth_state'
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7 // 7일
 
 const app = new Hono<{ Bindings: Bindings }>().basePath('/api')
@@ -31,66 +29,28 @@ const fromBase64Url = (s: string) => {
 }
 
 const isHttps = (c: Context) => new URL(c.req.url).protocol === 'https:'
-const redirectUri = (c: Context) => `${new URL(c.req.url).origin}/api/auth/callback`
 
 // ---- 기본 API ----
 app.get('/health', (c) => c.json({ ok: true }))
 app.get('/sights', (c) => c.json(sights))
 
-// ---- Google 로그인 ----
+// ---- Google 로그인 (Google Identity Services, 리디렉션 URI 없음) ----
+// 브라우저의 "Google 계정으로 로그인" 버튼이 받은 ID 토큰(credential)을 검증하고 세션 쿠키를 만듭니다.
+app.post('/auth/google', async (c) => {
+  if (!c.env.SESSION_SECRET) return c.json({ error: '서버에 SESSION_SECRET이 설정되지 않았습니다.' }, 500)
 
-// 1) Google 로그인 화면으로 보내기
-app.get('/auth/google', (c) => {
-  if (!c.env.GOOGLE_CLIENT_ID) return c.text('GOOGLE_CLIENT_ID가 설정되지 않았습니다.', 500)
+  const body = await c.req.json<{ credential?: string }>().catch(() => ({}) as { credential?: string })
+  if (!body.credential) return c.json({ error: 'credential이 없습니다.' }, 400)
 
-  const state = crypto.randomUUID()
-  setCookie(c, STATE_COOKIE, state, {
-    httpOnly: true,
-    secure: isHttps(c),
-    sameSite: 'Lax',
-    path: '/api/auth',
-    maxAge: 600,
-  })
+  // Google에 ID 토큰 검증 요청 (서명·만료 확인)
+  const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(body.credential)}`)
+  if (!res.ok) return c.json({ error: '유효하지 않은 Google 토큰입니다.' }, 401)
+  const info = (await res.json()) as Record<string, string>
 
-  const params = new URLSearchParams({
-    client_id: c.env.GOOGLE_CLIENT_ID,
-    redirect_uri: redirectUri(c),
-    response_type: 'code',
-    scope: 'openid email profile',
-    state,
-    prompt: 'select_account',
-  })
-  return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`)
-})
-
-// 2) Google이 돌려보낸 code로 사용자 정보 받기
-app.get('/auth/callback', async (c) => {
-  const { code, state, error } = c.req.query()
-  if (error) return c.redirect(`/?login_error=${encodeURIComponent(error)}`)
-
-  const savedState = getCookie(c, STATE_COOKIE)
-  deleteCookie(c, STATE_COOKIE, { path: '/api/auth' })
-  if (!code || !state || state !== savedState) return c.text('잘못된 로그인 요청입니다 (state 불일치).', 400)
-
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code,
-      client_id: c.env.GOOGLE_CLIENT_ID,
-      client_secret: c.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: redirectUri(c),
-      grant_type: 'authorization_code',
-    }),
-  })
-  if (!tokenRes.ok) return c.text(`토큰 교환 실패: ${await tokenRes.text()}`, 502)
-  const { access_token } = (await tokenRes.json()) as { access_token: string }
-
-  const infoRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
-    headers: { Authorization: `Bearer ${access_token}` },
-  })
-  if (!infoRes.ok) return c.text('사용자 정보를 가져오지 못했습니다.', 502)
-  const info = (await infoRes.json()) as User
+  // 우리 앱(클라이언트 ID)용으로 발급된 토큰인지, 발급자가 Google인지 확인
+  const validIssuer = info.iss === 'accounts.google.com' || info.iss === 'https://accounts.google.com'
+  if (info.aud !== GOOGLE_CLIENT_ID || !validIssuer) return c.json({ error: '이 사이트용 토큰이 아닙니다.' }, 401)
+  if (info.email_verified !== 'true') return c.json({ error: '이메일 인증이 안 된 계정입니다.' }, 401)
 
   const user: User = { sub: info.sub, name: info.name, email: info.email, picture: info.picture }
   await setSignedCookie(c, SESSION_COOKIE, toBase64Url(JSON.stringify(user)), c.env.SESSION_SECRET, {
@@ -100,10 +60,10 @@ app.get('/auth/callback', async (c) => {
     path: '/',
     maxAge: SESSION_MAX_AGE,
   })
-  return c.redirect('/')
+  return c.json({ user })
 })
 
-// 3) 현재 로그인한 사용자
+// 현재 로그인한 사용자
 app.get('/me', async (c) => {
   if (!c.env.SESSION_SECRET) return c.json({ user: null })
   const raw = await getSignedCookie(c, c.env.SESSION_SECRET, SESSION_COOKIE)
@@ -115,7 +75,7 @@ app.get('/me', async (c) => {
   }
 })
 
-// 4) 로그아웃
+// 로그아웃
 app.post('/auth/logout', (c) => {
   deleteCookie(c, SESSION_COOKIE, { path: '/' })
   return c.json({ ok: true })

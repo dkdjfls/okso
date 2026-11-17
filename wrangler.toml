@@ -2,7 +2,5 @@ name = "okso"
 pages_build_output_dir = "./dist"
 compatibility_date = "2026-11-01"
 
-# 공개 값(클라이언트 ID)만 여기에 둡니다.
-# GOOGLE_CLIENT_SECRET, SESSION_SECRET 은 Cloudflare 대시보드의 Secret으로 설정하세요.
-[vars]
-GOOGLE_CLIENT_ID = "374241485062-vrshdmm8dakj9vpulit38ldhshnpmf41.apps.googleusercontent.com"
+# Google 클라이언트 ID는 src/config.ts 에 있습니다.
+# SESSION_SECRET 은 Cloudflare 대시보드의 Secret으로 설정하세요.
